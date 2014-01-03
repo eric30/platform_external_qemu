@@ -17,6 +17,10 @@ typedef enum {
 
 /* hw/goldfish_bt.c */
 CharDriverState* goldfish_bt_new_cs (struct HCIInfo *hci);
+void             goldfish_bt_add_remote (char *address);
+void             goldfish_bt_remove_remote (char *address);
+void             goldfish_bt_set_remote_property (
+                     char *address, char *property, char *value);
 
 /* hw/goldfish_rfkill.c */
 uint32_t android_rfkill_get_blocking();

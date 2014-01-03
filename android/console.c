@@ -3299,6 +3299,86 @@ static const CommandDefRec  modem_commands[] =
 /********************************************************************************************/
 /********************************************************************************************/
 /*****                                                                                 ******/
+/*****                      B L U E T O O T H   C O M M A N D S                        ******/
+/*****                                                                                 ******/
+/********************************************************************************************/
+/********************************************************************************************/
+
+static int do_bluetooth_add_remote( ControlClient client, char* args )
+{
+    if (!args) {
+        control_write(client, "KO: [Add Remote] No argument\n");
+        return -1;
+    }
+
+    goldfish_bt_add_remote(args);
+
+    return 0;
+}
+
+static int do_bluetooth_remove_remote( ControlClient client, char* args )
+{
+    if (!args) {
+        control_write(client, "KO: [Remove Remote] No argument\n");
+        return -1;
+    }
+
+    goldfish_bt_remove_remote(args);
+
+    return 0;
+}
+
+static int do_bluetooth_set( ControlClient client, char* args )
+{
+    if (!args) {
+        control_write(client, "KO: [Set Property] No argument\n");
+        return -1;
+    }
+
+    char* address = strtok(args, " ");
+    if (address == NULL)
+        goto invalid_argument;
+
+    char* property = strtok(NULL, " ");
+    if (property == NULL)
+        goto invalid_argument;
+
+    char* value = strtok(NULL, " ");
+
+    goldfish_bt_set_remote_property(address, property, value);
+
+    return 0;
+
+invalid_argument:
+    control_write(client, "KO: [Set property] Invalid argument\n");
+    return -1;
+}
+
+static const CommandDefRec bt_commands[] =
+{
+  { "add-remote", "add a discoverable remote device",
+    "using 'bt add-remote <bd_addr>' to add a virtual Bluetooth remote\r\n"
+    "device and set it to discoverable.\r\n",
+    NULL, do_bluetooth_add_remote, NULL },
+
+  { "remove-remote", "remove a remote device",
+    "using 'bt remove-remote [<bd_addr>|all]' to remove a Bluetooth remote\r\n"
+    "device or all Bluetooth remote devices within the scatternet.\r\n",
+    NULL, do_bluetooth_remove_remote, NULL },
+
+  { "set", "set remote device property",
+    "using 'bt set <bd_addr> <prop> <value>' to set remote device properties\r\n"
+    "<prop>:\r\n"
+    "    name                           Change device friendly name\r\n"
+    "    discoverable    [true|false]   Enable/Disable inquiry scan\r\n",
+    NULL, do_bluetooth_set, NULL },
+
+  { NULL, NULL, NULL, NULL, NULL, NULL }
+};
+
+/********************************************************************************************/
+/********************************************************************************************/
+/*****                                                                                 ******/
 /*****                           M A I N   C O M M A N D S                             ******/
 /*****                                                                                 ******/
 /********************************************************************************************/
@@ -3700,6 +3780,10 @@ static const CommandDefRec   main_commands[] =
     { "modem", "Modem related commands",
       "allows you to modify/retrieve modem info\r\n", NULL,
       NULL, modem_commands },
+
+    { "bt", "Bluetooth related commands",
+      "allows you to retrieve BT status or add/remove remote devices\r\n", NULL,
+      NULL, bt_commands },
 
     { NULL, NULL, NULL, NULL, NULL, NULL }
 };

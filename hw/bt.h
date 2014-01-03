@@ -109,6 +109,11 @@ void bt_device_done(struct bt_device_s *dev);
 
 /* bt-hci.c */
 struct HCIInfo *bt_new_hci(struct bt_scatternet_s *net);
+void bt_add_remote(struct HCIInfo *info, char *address);
+void bt_remove_remote(struct HCIInfo *info, char *address);
+void bt_remove_all_remotes(struct HCIInfo *info);
+void bt_set_remote_property(
+    struct HCIInfo *info, char *address, char *property, char *value);
 
 /* bt-vhci.c */
 void bt_vhci_init(struct HCIInfo *info);

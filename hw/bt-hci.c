@@ -585,6 +585,7 @@ static void bt_hci_inquiry_start(struct bt_hci_s *hci, int length)
     struct bt_device_s *slave;
 
     hci->lm.inquiry_length = length;
+
     for (slave = hci->device.net->slave; slave; slave = slave->next)
         /* Don't uncover ourselves.  */
         if (slave != &hci->device)
@@ -2219,3 +2220,119 @@ static void bt_hci_done(struct HCIInfo *info)
 
     qemu_free(hci);
 }
+
+static void bt_str_to_bdaddr(const char *addr_str, bdaddr_t *addr)
+{
+    sscanf(addr_str, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+           &addr->b[5], &addr->b[4], &addr->b[3],
+           &addr->b[2], &addr->b[1], &addr->b[0]);
+}
+
+void bt_add_remote(struct HCIInfo *info, char *address)
+{
+    struct bt_hci_s* hci = hci_from_info(info);
+    struct bt_device_s* slave = hci->device.net->slave;
+    struct bt_device_s* remote = qemu_mallocz(sizeof(struct bt_device_s));
+
+    memset(remote, 0, sizeof(*remote));
+
+    bt_str_to_bdaddr(address, &remote->bd_addr);
+
+    /* Default: enable inquiry scan and page scan */
+    remote->inquiry_scan = 1;
+    remote->page_scan = 1;
+
+    /* Simple slave-only devices need to implement only .lmp_acl_data */
+    remote->lmp_acl_data = bt_hci_lmp_acl_data_slave;
+
+    remote->net = hci->device.net;
+
+    /* Append remote to the scatternet */
+    while (slave->next)
+        slave = slave->next;
+
+    slave->next = remote;
+    remote->next = NULL;
+}
+
+void bt_remove_remote(struct HCIInfo *info, char *address)
+{
+    struct bt_hci_s* hci = hci_from_info(info);
+    struct bt_device_s* prev_slave = hci->device.net->slave;
+    struct bt_device_s* slave = hci->device.net->slave->next;
+
+    bdaddr_t addr;
+    bt_str_to_bdaddr(address, &addr);
+
+    /* The first slave in the slave linked list should be the local device. */
+    /* Therefore start from the second slave.                               */
+    while (slave) {
+        if (!bacmp(&slave->bd_addr, &addr)) {
+            prev_slave->next = slave->next;
+
+            if (slave->lmp_name) {
+                qemu_free((void *) slave->lmp_name);
+            }
+            qemu_free(slave);
+            break;
+        }
+
+        prev_slave = slave;
+        slave = slave->next;
+    }
+}
+
+void bt_remove_all_remotes(struct HCIInfo *info)
+{
+    struct bt_hci_s* hci = hci_from_info(info);
+
+    /* The first slave in the slave linked list should be the local device. */
+    /* Therefore start from the second slave.                               */
+    struct bt_device_s* slave = hci->device.net->slave->next;
+
+    while (slave) {
+        struct bt_device_s* next = slave->next;
+
+        if (slave->lmp_name)
+            qemu_free((void *) slave->lmp_name);
+        qemu_free(slave);
+
+        slave = next;
+    }
+
+    /* Keep local device and clear all slaves by setting next to NULL */
+    hci->device.net->slave->next = NULL;
+}
+
+void bt_set_remote_property(
+    struct HCIInfo *info, char *address, char *property, char *value)
+{
+    struct bt_hci_s* hci = hci_from_info(info);
+    struct bt_device_s* slave;
+
+    bdaddr_t addr;
+    bt_str_to_bdaddr(address, &addr);
+
+    for (slave = hci->device.net->slave; slave; slave = slave->next) {
+        if (!bacmp(&slave->bd_addr, &addr))
+            break;
+    }
+
+    if (!slave) return;
+
+    if (!strcmp(property, "name")) {
+        if (slave->lmp_name) {
+            qemu_free((void *) slave->lmp_name);
+        }
+        slave->lmp_name = qemu_strdup(value);
+    } else if (!strcmp(property, "discoverable")) {
+        if (!strcmp(value, "true")) {
+            slave->inquiry_scan = 1;
+        } else if (!strcmp(value, "false")) {
+            slave->inquiry_scan = 0;
+        } else {
+            /* Invalue argument. Do nothing. */
+        }
+    }
+}
+
