@@ -551,6 +551,47 @@ static void bt_hci_inquiry_result_with_rssi(struct bt_hci_s *hci,
                     &params, INQUIRY_INFO_WITH_RSSI_SIZE);
 }
 
+static void bt_hci_extended_inquiry_result(struct bt_hci_s *hci,
+                struct bt_device_s *slave)
+{
+    extended_inquiry_info params = {
+        .num_responses		= 1,
+        .bdaddr			= BAINIT(&slave->bd_addr),
+        .pscan_rep_mode		= 0x00,	/* R0 */
+        .pscan_period_mode	= 0x00,	/* P0 - deprecated */
+        .dev_class[0]		= slave->class[0],
+        .dev_class[1]		= slave->class[1],
+        .dev_class[2]		= slave->class[2],
+        /* TODO: return the clkoff *differenece* */
+        .clock_offset		= slave->clkoff,	/* Note: no swapping */
+        .rssi			= DEFAULT_RSSI_DBM,
+    };
+
+    memset(params.data, 0, sizeof(params.data));
+
+    if (!slave->lmp_name) {
+        fprintf(stderr, "No name");
+        params.data[0] = 1;
+        params.data[1] = 0x09;
+    } else {
+        int name_length = strlen(slave->lmp_name);
+        if (name_length > 238) {
+          fprintf(stderr, "Shortened name");
+          params.data[0] = 239;
+          params.data[1] = 0x08;
+        } else {
+          fprintf(stderr, "Complete name");
+          params.data[0] = 1 + name_length;
+          params.data[1] = 0x09;
+        }
+
+        strncpy(&params.data[2], slave->lmp_name, params.data[0] - 1);
+    }
+
+    bt_hci_event(hci, EVT_EXTENDED_INQUIRY_RESULT,
+                    &params, EXTENDED_INQUIRY_INFO_SIZE);
+}
+
 static void bt_hci_inquiry_result(struct bt_hci_s *hci,
                 struct bt_device_s *slave)
 {
@@ -560,12 +601,18 @@ static void bt_hci_inquiry_result(struct bt_hci_s *hci,
     hci->lm.responses_left --;
     hci->lm.responses ++;
 
+    hci->lm.inquiry_mode = 2;
+    fprintf(stderr, "inquiry mode: %x", hci->lm.inquiry_mode);
+
     switch (hci->lm.inquiry_mode) {
     case 0x00:
         bt_hci_inquiry_result_standard(hci, slave);
         return;
     case 0x01:
         bt_hci_inquiry_result_with_rssi(hci, slave);
+        return;
+    case 0x02:
+        bt_hci_extended_inquiry_result(hci, slave);
         return;
     default:
         fprintf(stderr, "%s: bad inquiry mode %02x\n", __FUNCTION__,
@@ -1148,8 +1195,8 @@ static void bt_hci_reset(struct bt_hci_s *hci)
     hci->device.class[2] = 0x00;
     hci->voice_setting = 0x0000;
     hci->conn_accept_tout = 0x1f40;
-    hci->lm.inquiry_mode = 0x00;
-    //hci->lm.inquiry_mode = 0x01;
+    //hci->lm.inquiry_mode = 0x00;
+    hci->lm.inquiry_mode = 0x02;
 
     hci->psb_handle = 0x000;
     hci->asb_handle = 0x000;
@@ -1915,6 +1962,7 @@ static void bt_submit_hci(struct HCIInfo *info,
         }
 
         hci->lm.inquiry_mode = PARAM(write_inquiry_mode, mode);
+        fprintf(stderr, "write inquiry mode: %x", hci->lm.inquiry_mode);
         bt_hci_event_complete_status(hci, HCI_SUCCESS);
         break;
 

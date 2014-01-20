@@ -1628,6 +1628,7 @@ typedef struct {
 
 #define EVT_EXTENDED_INQUIRY_RESULT	0x2F
 typedef struct {
+    uint8_t	num_responses;
     bdaddr_t	bdaddr;
     uint8_t	pscan_rep_mode;
     uint8_t	pscan_period_mode;
