@@ -588,8 +588,10 @@ static void bt_hci_inquiry_start(struct bt_hci_s *hci, int length)
 
     for (slave = hci->device.net->slave; slave; slave = slave->next)
         /* Don't uncover ourselves.  */
-        if (slave != &hci->device)
+        if (slave != &hci->device) {
             bt_hci_inquiry_result(hci, slave);
+            fprintf(stderr, "\nInquiry result send\n");
+        }
 
     /* TODO: register for a callback on a new device's addition to the
      * scatternet so that if it's added before inquiry_length expires,
@@ -1147,6 +1149,7 @@ static void bt_hci_reset(struct bt_hci_s *hci)
     hci->voice_setting = 0x0000;
     hci->conn_accept_tout = 0x1f40;
     hci->lm.inquiry_mode = 0x00;
+    //hci->lm.inquiry_mode = 0x01;
 
     hci->psb_handle = 0x000;
     hci->asb_handle = 0x000;
@@ -2318,13 +2321,17 @@ void bt_set_remote_property(
             break;
     }
 
-    if (!slave) return;
+    if (!slave) {
+        fprintf(stderr, "No slave found");
+        return;
+    }
 
     if (!strcmp(property, "name")) {
         if (slave->lmp_name) {
             qemu_free((void *) slave->lmp_name);
         }
         slave->lmp_name = qemu_strdup(value);
+        fprintf(stderr, "\nChange name: %s\n", slave->lmp_name);
     } else if (!strcmp(property, "discoverable")) {
         if (!strcmp(value, "true")) {
             slave->inquiry_scan = 1;
